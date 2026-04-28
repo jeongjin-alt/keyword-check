@@ -448,10 +448,56 @@
         }
     }
 
-    // ── 로컬 서버 연결 시도 (3초 타임아웃) ──────────────────
+    // ── Google Sheets CSV 직접 읽기 ─────────────────────────
+    // 시트를 "웹에 게시(CSV)"로 공개해야 동작합니다
+    const SHEETS_CSV_URL = 'https://docs.google.com/spreadsheets/d/1wKdIP53XQ0cW9vGb0UEvVe-sxoPyU3s3mU6CjAtzT-g/pub?output=csv&gid=846422019';
+
+    function parseCSV(text) {
+        return text.trim().split('\n').map(line => {
+            const cols = [];
+            let cur = '', inQ = false;
+            for (const ch of line) {
+                if (ch === '"') { inQ = !inQ; }
+                else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ''; }
+                else { cur += ch; }
+            }
+            cols.push(cur.trim());
+            return cols;
+        });
+    }
+
+    async function fetchSheetsCSV() {
+        const res = await fetch(SHEETS_CSV_URL + '&t=' + Date.now());
+        if (!res.ok) throw new Error(`Sheets CSV ${res.status}`);
+        const text = await res.text();
+        const rows = parseCSV(text);
+        // 헤더=4행(index 3), 데이터=5~10행(index 4~9)
+        // D=index3, E=index4, K=index10, L=index11
+        const kwList = ['PC방창업','피시방창업','피씨방창업','PC방창업비용','피시방창업비용','피씨방창업비용'];
+        return kwList.map((kw, i) => {
+            const row = rows[4 + i] || [];
+            const v = (idx) => { const n = parseInt(row[idx]); return (isNaN(n) || n <= 0) ? 0 : n; };
+            return { keyword: kw, adPC: v(3), adMobile: v(4), brandPC: v(10), brandMobile: v(11) };
+        });
+    }
+
+    function renderData(data, lastUpdated) {
+        document.getElementById('tbody').innerHTML = data.map(r => `
+            <tr>
+                <td>${r.keyword}</td>
+                <td>${badgeAd(r.adPC)}</td>
+                <td>${badgeAd(r.adMobile)}</td>
+                <td class="col-sep">${badgeBrand(r.brandPC)}</td>
+                <td>${badgeBrand(r.brandMobile)}</td>
+            </tr>`).join('');
+        document.getElementById('lastUpdated').textContent =
+            lastUpdated ? `마지막 체크: ${lastUpdated}` : '구글 시트 실시간 데이터';
+    }
+
+    // ── 로컬 서버 연결 시도 (2초 타임아웃, 관리자 PC 전용) ──
     async function tryLocal(path, method = 'POST') {
         const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 3000);
+        const timer = setTimeout(() => ctrl.abort(), 2000);
         try {
             const res = await fetch('http://localhost:8765' + path, { method, signal: ctrl.signal });
             clearTimeout(timer);
@@ -462,59 +508,68 @@
         }
     }
 
-    // ── 지금 체크하기 ───────────────────────────────────────
+    // ── 새로고침: 구글 시트 CSV 직접 읽기 ──────────────────
+    async function refreshFromSheets() {
+        const btn = document.getElementById('refreshBtn');
+        btn.disabled  = true;
+        btn.innerHTML = '⏳ 읽는 중…';
+        setStatus('loading', '⏳ 구글 시트에서 데이터를 불러오는 중...');
+        showSkeletons();
+
+        try {
+            const data = await fetchSheetsCSV();
+            renderData(data, null);
+            setStatus('success', '✅ 구글 시트 최신 데이터 로드 완료');
+            setTimeout(() => { document.getElementById('statusBar').style.display = 'none'; }, 3000);
+        } catch(e) {
+            // CSV 접근 실패 시 캐시된 JSON으로 폴백
+            setStatus('error', '⚠️ 구글 시트 접근 실패 — 저장된 데이터를 표시합니다');
+            await loadData();
+        }
+
+        btn.innerHTML = '🔄 새로고침';
+        btn.disabled  = false;
+    }
+
+    // ── 지금 체크하기 (관리자 PC 로컬 서버 전용) ───────────
     let _checkPollTimer = null;
     let _lastMtime = 0;
 
     async function runCheck() {
         const btn    = document.getElementById('checkBtn');
         const notice = document.getElementById('checkNotice');
-
-        btn.disabled = true;
+        btn.disabled  = true;
         btn.innerHTML = '<span class="spin">⏳</span> 연결 중…';
 
         const res = await tryLocal('/run-check');
 
         if (!res) {
-            // 로컬 서버 없음 → 그냥 최신 데이터 새로고침
-            btn.disabled = false;
+            btn.disabled  = false;
             btn.innerHTML = '🔍 지금 체크하기';
-            setStatus('loading', '⏳ 최신 데이터를 불러오는 중...');
-            await loadData();
+            // 로컬 서버 없으면 구글 시트 새로고침으로 대체
+            await refreshFromSheets();
             return;
         }
-
-        if (res.status === 409) {
+        if (res.status === 409 || res.ok) {
             btn.className = 'check-btn running';
             btn.innerHTML = '<span class="spin">⏳</span> 체크 실행 중…';
             notice.style.display = 'flex';
+            try {
+                const st = await tryLocal('/check-status', 'GET');
+                if (st) { const sd = await st.json(); _lastMtime = sd.dataMtime || 0; }
+            } catch(e) {}
             _startCheckPoll();
-            return;
         }
-
-        btn.className = 'check-btn running';
-        btn.innerHTML = '<span class="spin">⏳</span> 체크 실행 중…';
-        notice.style.display = 'flex';
-
-        try {
-            const st = await tryLocal('/check-status', 'GET');
-            if (st) { const sd = await st.json(); _lastMtime = sd.dataMtime || 0; }
-        } catch(e) {}
-
-        _startCheckPoll();
     }
 
     function _startCheckPoll() {
         if (_checkPollTimer) return;
         _checkPollTimer = setInterval(async () => {
             const res = await tryLocal('/check-status', 'GET');
-            if (!res) { _checkDone(); await loadData(); return; }
+            if (!res) { _checkDone(); await refreshFromSheets(); return; }
             try {
-                const data = await res.json();
-                if (!data.running && data.dataMtime > _lastMtime) {
-                    _checkDone();
-                    loadData();
-                }
+                const d = await res.json();
+                if (!d.running && d.dataMtime > _lastMtime) { _checkDone(); loadData(); }
             } catch(e) {}
         }, 30 * 1000);
         setTimeout(_checkDone, 30 * 60 * 1000);
@@ -523,72 +578,14 @@
     function _checkDone() {
         clearInterval(_checkPollTimer);
         _checkPollTimer = null;
-        const btn    = document.getElementById('checkBtn');
-        const notice = document.getElementById('checkNotice');
+        const btn = document.getElementById('checkBtn');
         btn.className = 'check-btn';
         btn.disabled  = false;
         btn.innerHTML = '🔍 지금 체크하기';
-        notice.style.display = 'none';
-    }
-
-    // ── 새로고침 ────────────────────────────────────────────
-    let _refreshPollTimer = null;
-    let _refreshMtimeBefore = 0;
-
-    async function refreshFromSheets() {
-        const btn = document.getElementById('refreshBtn');
-        btn.disabled  = true;
-        btn.innerHTML = '⏳ 읽는 중…';
-
-        const res = await tryLocal('/refresh-sheets');
-
-        if (!res) {
-            // 로컬 서버 없음 → GitHub에서 최신 데이터 불러오기
-            await loadData();
-            btn.innerHTML = '🔄 새로고침';
-            btn.disabled  = false;
-            return;
-        }
-
-        if (res.status === 409) {
-            _startRefreshPoll();
-            return;
-        }
-
-        try {
-            const st = await tryLocal('/check-status', 'GET');
-            if (st) { const sd = await st.json(); _refreshMtimeBefore = sd.dataMtime || 0; }
-        } catch(e) {}
-
-        _startRefreshPoll();
-    }
-
-    function _startRefreshPoll() {
-        if (_refreshPollTimer) return;
-        _refreshPollTimer = setInterval(async () => {
-            const res = await tryLocal('/check-status', 'GET');
-            if (!res) { _refreshDone(); await loadData(); return; }
-            try {
-                const data = await res.json();
-                if (!data.refreshRunning && data.dataMtime > _refreshMtimeBefore) {
-                    _refreshDone();
-                    await loadData();
-                }
-            } catch(e) {}
-        }, 10 * 1000);
-        setTimeout(_refreshDone, 5 * 60 * 1000);
-    }
-
-    function _refreshDone() {
-        clearInterval(_refreshPollTimer);
-        _refreshPollTimer = null;
-        const btn = document.getElementById('refreshBtn');
-        btn.innerHTML = '🔄 새로고침';
-        btn.disabled  = false;
+        document.getElementById('checkNotice').style.display = 'none';
     }
 
     loadData();
-    // 10분마다 자동 새로고침
     setInterval(loadData, 10 * 60 * 1000);
 </script>
 
