@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>블랙라벨PC존 순위 모니터링</title>
+    <style>
+        :root {
+            --bg-primary: #0d1117;
+            --bg-card: #161b22;
+            --bg-card-hover: #1c2128;
+            --border: #30363d;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --accent: #58a6ff;
+            --success: #3fb950;
+            --warning: #d29922;
+            --danger: #f85149;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 28px 32px;
+        }
+
+        /* ── Header ── */
+        .header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 28px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .header-left h1 {
+            font-size: 22px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header-left h1 .brand {
+            background: linear-gradient(135deg, #58a6ff 0%, #3fb950 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header-left .subtitle {
+            color: var(--text-secondary);
+            font-size: 13px;
+            margin-top: 5px;
+        }
+
+        .header-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
+        }
+
+        .last-updated {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        /* ── Schedule badges ── */
+        .schedule-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .schedule-badge {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 6px 14px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
+
+        .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 2.5s ease-in-out infinite;
+            flex-shrink: 0;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.35; transform: scale(0.8); }
+        }
+
+        /* ── Status bar ── */
+        .status-bar {
+            border-radius: 8px;
+            padding: 11px 16px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            border: 1px solid transparent;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.4s;
+        }
+
+        .status-bar.loading { background: rgba(88,166,255,0.06); border-color: rgba(88,166,255,0.2); color: var(--accent); }
+        .status-bar.success { background: rgba(63,185,80,0.06); border-color: rgba(63,185,80,0.25); color: var(--success); }
+        .status-bar.error   { background: rgba(248,81,73,0.06);  border-color: rgba(248,81,73,0.25);  color: var(--danger); }
+
+        /* ── Table ── */
+        .table-wrap {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .table-title {
+            padding: 14px 20px;
+            font-size: 14px;
+            font-weight: 600;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        table { width: 100%; border-collapse: collapse; }
+
+        thead th {
+            background: #0d1117;
+            padding: 10px 16px;
+            font-size: 11.5px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-align: center;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+            letter-spacing: 0.2px;
+        }
+
+        thead th:first-child { text-align: left; padding-left: 20px; }
+
+        .group-th {
+            background: rgba(88,166,255,0.04) !important;
+            color: var(--accent) !important;
+            font-size: 11px !important;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+
+        tbody tr { border-bottom: 1px solid var(--border); transition: background 0.15s; }
+        tbody tr:last-child { border-bottom: none; }
+        tbody tr:hover { background: var(--bg-card-hover); }
+
+        tbody td {
+            padding: 13px 16px;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        tbody td:first-child {
+            text-align: left;
+            font-weight: 600;
+            padding-left: 20px;
+            white-space: nowrap;
+        }
+
+        .col-sep { border-left: 1px solid var(--border) !important; }
+
+        /* ── Rank badges ── */
+        .rb {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 42px;
+            height: 28px;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 13.5px;
+            padding: 0 8px;
+        }
+
+        .r-yellow { background: rgba(230,180,0,0.15);  color: #f0c040; border: 1px solid rgba(230,180,0,0.4); }
+        .r-red    { background: rgba(248,81,73,0.12);  color: #f85149; border: 1px solid rgba(248,81,73,0.4); }
+        .rn       { background: rgba(139,148,158,0.1); color: var(--text-secondary); border: 1px solid rgba(139,148,158,0.2); font-size:11.5px; }
+
+        /* ── Skeleton ── */
+        .skeleton {
+            display: inline-block;
+            width: 42px; height: 28px;
+            border-radius: 6px;
+            background: linear-gradient(90deg, var(--bg-card) 25%, var(--bg-card-hover) 50%, var(--bg-card) 75%);
+            background-size: 300% 100%;
+            animation: shimmer 1.6s infinite;
+        }
+
+        @keyframes shimmer {
+            0%   { background-position: 200% 0; }
+            100% { background-position: -100% 0; }
+        }
+
+        /* ── Legend ── */
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+            margin-top: 14px;
+            padding: 0 2px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .legend-dot {
+            width: 10px; height: 10px;
+            border-radius: 3px;
+            flex-shrink: 0;
+        }
+
+        /* ── Footer ── */
+        .footer {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="header-left">
+        <h1>📊 <span class="brand">아이센스블랙라벨PC존</span> 순위 모니터링</h1>
+        <p class="subtitle">네이버 검색 | 관련 광고 &amp; 브랜드 콘텐츠 노출 순위</p>
+    </div>
+    <div class="header-right">
+        <span class="last-updated" id="lastUpdated">불러오는 중…</span>
+    </div>
+</div>
+
+<div class="schedule-row">
+    <div class="schedule-badge"><span class="dot"></span> 월~금 오전 9:50 자동 체크</div>
+    <div class="schedule-badge"><span class="dot"></span> 월~금 오후 2:00 자동 체크</div>
+    <div class="schedule-badge"><span class="dot"></span> 월~금 오후 4:40 자동 체크</div>
+</div>
+
+<div id="statusBar" class="status-bar loading">⏳ 데이터를 불러오는 중...</div>
+
+<div class="table-wrap">
+    <div class="table-title">📈 키워드별 네이버 노출 순위</div>
+    <table>
+        <thead>
+            <tr>
+                <th rowspan="2" style="vertical-align:bottom;">키워드</th>
+                <th colspan="2" class="group-th">관련 광고</th>
+                <th colspan="2" class="group-th col-sep">브랜드 콘텐츠</th>
+            </tr>
+            <tr>
+                <th>💻 PC버전</th>
+                <th>📱 모바일</th>
+                <th class="col-sep">💻 PC버전</th>
+                <th>📱 모바일</th>
+            </tr>
+        </thead>
+        <tbody id="tbody">
+        </tbody>
+    </table>
+</div>
+
+<div class="legend">
+    <span class="legend-item"><span class="legend-dot" style="background:#f0c040;"></span>관련광고 1~5위 / 브랜드콘텐츠 1~2위</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#f85149;"></span>관련광고 6위+ / 브랜드콘텐츠 3위+</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#8b949e;"></span>미노출</span>
+</div>
+
+<div class="footer">순위 데이터는 평일(월~금) 하루 3회 자동 업데이트됩니다</div>
+
+<script>
+    // dashboard-data.json은 같은 레포에 있으므로 상대경로 사용
+    const DATA_URL = 'dashboard-data.json';
+
+    const KEYWORDS = ['PC방창업','피시방창업','피씨방창업','PC방창업비용','피시방창업비용','피씨방창업비용'];
+
+    function badgeAd(n) {
+        const num = parseInt(n);
+        if (!num || num === 0) return `<span class="rb rn">미노출</span>`;
+        const cls = num <= 5 ? 'r-yellow' : 'r-red';
+        return `<span class="rb ${cls}">${num}위</span>`;
+    }
+
+    function badgeBrand(n) {
+        const num = parseInt(n);
+        if (!num || num === 0) return `<span class="rb rn">미노출</span>`;
+        const cls = num <= 2 ? 'r-yellow' : 'r-red';
+        return `<span class="rb ${cls}">${num}위</span>`;
+    }
+
+    function skeleton() { return `<span class="skeleton"></span>`; }
+
+    function showSkeletons() {
+        document.getElementById('tbody').innerHTML = KEYWORDS.map(kw => `
+            <tr>
+                <td>${kw}</td>
+                <td>${skeleton()}</td><td>${skeleton()}</td>
+                <td class="col-sep">${skeleton()}</td><td>${skeleton()}</td>
+            </tr>`).join('');
+    }
+
+    function setStatus(type, html) {
+        const el = document.getElementById('statusBar');
+        el.className = `status-bar ${type}`;
+        el.innerHTML = html;
+        el.style.display = '';
+    }
+
+    async function loadData() {
+        setStatus('loading', '⏳ 최신 데이터를 불러오는 중...');
+        showSkeletons();
+
+        try {
+            const res = await fetch(DATA_URL + '?t=' + Date.now());
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const json = await res.json();
+
+            document.getElementById('tbody').innerHTML = json.data.map(r => `
+                <tr>
+                    <td>${r.keyword}</td>
+                    <td>${badgeAd(r.adPC)}</td>
+                    <td>${badgeAd(r.adMobile)}</td>
+                    <td class="col-sep">${badgeBrand(r.brandPC)}</td>
+                    <td>${badgeBrand(r.brandMobile)}</td>
+                </tr>`).join('');
+
+            const updatedAt = json.lastUpdated
+                ? `마지막 체크: ${json.lastUpdated}`
+                : '아직 데이터가 없습니다';
+
+            document.getElementById('lastUpdated').textContent = updatedAt;
+            setStatus('success', '✅ 데이터 로드 완료');
+            setTimeout(() => { document.getElementById('statusBar').style.display = 'none'; }, 3000);
+
+        } catch (e) {
+            document.getElementById('tbody').innerHTML = `<tr><td colspan="5" style="text-align:center;padding:48px 20px;color:var(--text-secondary);">
+                <div style="font-size:42px;margin-bottom:12px;">⏳</div>
+                <p style="font-size:14px;margin-bottom:6px;color:var(--text-primary);">아직 체크 결과가 없습니다</p>
+                <small>다음 자동 체크(오전 9:50 / 오후 2:00 / 오후 4:40) 이후 데이터가 표시됩니다.</small>
+            </td></tr>`;
+            setStatus('error', `⚠️ 데이터를 불러올 수 없습니다`);
+            document.getElementById('lastUpdated').textContent = '데이터 없음';
+        }
+    }
+
+    loadData();
+    // 10분마다 자동 새로고침 (GitHub Pages 캐시 고려)
+    setInterval(loadData, 10 * 60 * 1000);
+</script>
+
+</body>
+</html>
