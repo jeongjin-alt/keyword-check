@@ -1,10 +1,10 @@
 {
-  "lastUpdated": "2026-05-04 09:50",
+  "lastUpdated": "2026-05-11 14:00",
   "data": [
     { "keyword": "PC방창업",       "adPC": 3, "adMobile": 3, "brandPC": 2, "brandMobile": 2 },
-    { "keyword": "피시방창업",     "adPC": 6, "adMobile": 3, "brandPC": 2, "brandMobile": 2 },
-    { "keyword": "피씨방창업",     "adPC": 6, "adMobile": 3, "brandPC": 1, "brandMobile": 1 },
-    { "keyword": "PC방창업비용",   "adPC": 7, "adMobile": 4, "brandPC": 1, "brandMobile": 2 },
+    { "keyword": "피시방창업",     "adPC": 5, "adMobile": 3, "brandPC": 2, "brandMobile": 2 },
+    { "keyword": "피씨방창업",     "adPC": 5, "adMobile": 3, "brandPC": 1, "brandMobile": 1 },
+    { "keyword": "PC방창업비용",   "adPC": 5, "adMobile": 3, "brandPC": 1, "brandMobile": 2 },
     { "keyword": "피시방창업비용", "adPC": 5, "adMobile": 3, "brandPC": 1, "brandMobile": 1 },
     { "keyword": "피씨방창업비용", "adPC": 5, "adMobile": 3, "brandPC": 1, "brandMobile": 1 }
   ]
